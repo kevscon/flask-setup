@@ -1,6 +1,8 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import sqlite3
+import json
+import config
 
 app = Flask(__name__)
 CORS(app)
@@ -30,22 +32,25 @@ def get_shape_data():
     input_str = request.json['text']
     shape = input_str
 
-    db_name = 'data/shapes_database.db'
-    table_name = 'shapes_database'
-    search_column = 'EDI_Std_Nomenclature'
-    return_columns = ['EDI_Std_Nomenclature', 'W', 'A', 'h', 'd', 'b', 'bf', 't', 'tdes', 'OD', 'ID', 'tw', 'tf', 'kdes', 'k1', 'T_toes', 'PB', 'x', 'y', 'Ix', 'Zx', 'Sx', 'rx', 'Iy', 'Zy', 'Sy', 'ry']
-    # shape_type = return_shape_data(db_name, table_name, ['Type'], shape)[0]
-    shape_list = return_shape_data(db_name, table_name, search_column, return_columns, shape)
-    shape_dict = dict(zip(return_columns, shape_list))
+    with open('data/return_props.json', 'r') as file:
+        return_props = json.load(file)
+    search_column = return_props[0]
+    # shape_type = return_shape_data(config.DATABASE_URL, config.TABLE_NAME, ['Type'], shape)[0]
+    shape_list = return_shape_data(config.DATABASE_URL, config.TABLE_NAME, search_column, return_props, shape)
+    shape_dict = dict(zip(return_props, shape_list))
     return jsonify(shape_dict)
 
 @app.route('/shape-labels', methods=['GET'])
-def shape_labels():
-    db_name = 'data/shapes_database.db'
-    table_name = 'shapes_database'
+def get_labels():
     shape_header = 'EDI_Std_Nomenclature'
-    shape_labels = get_column_values(db_name, table_name, shape_header)
+    shape_labels = get_column_values(config.DATABASE_URL, config.TABLE_NAME, shape_header)
     return jsonify(shape_labels)
 
+@app.route('/shape-table-labels', methods=['GET'])
+def get_table_labels():
+    with open('data/shape_table_labels.json', 'r') as file:
+        shape_table_labels = json.load(file)
+    return jsonify(shape_table_labels)
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=config.DEBUG)
