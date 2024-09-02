@@ -1,30 +1,11 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import sqlite3
+import db_utils
 import json
 import config
 
 app = Flask(__name__)
 CORS(app)
-
-def return_shape_data(db_name, table_name, search_column, return_columns, value):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    columns_str = ", ".join(return_columns)
-    query = f"SELECT {columns_str} FROM {table_name} WHERE {search_column} = ?"
-    cursor.execute(query, (value,))
-    filtered_rows = list(cursor.fetchall()[0])
-    conn.close()
-    return filtered_rows
-
-def get_column_values(db_name, table_name, column_name):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
-    query = f"SELECT {column_name} FROM {table_name}"
-    cursor.execute(query)
-    values = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return values
 
 @app.route('/', methods=['POST'])
 def get_shape_data():
@@ -34,16 +15,23 @@ def get_shape_data():
 
     with open('data/return_props.json', 'r') as file:
         return_props = json.load(file)
+    with open('data/shape_table_labels.json', 'r') as file:
+        prop_dict = json.load(file)
     search_column = return_props[0]
-    # shape_type = return_shape_data(config.DATABASE_URL, config.TABLE_NAME, ['Type'], shape)[0]
-    shape_list = return_shape_data(config.DATABASE_URL, config.TABLE_NAME, search_column, return_props, shape)
-    shape_dict = dict(zip(return_props, shape_list))
-    return jsonify(shape_dict)
+    shape_type = db_utils.return_shape_data(config.DATABASE_URL, config.TABLE_NAME, search_column, ['Type'], shape)[0]
+    shape_props = db_utils.return_shape_data(config.DATABASE_URL, config.TABLE_NAME, search_column, return_props, shape)
+    prop_labels = [prop_dict[prop]['label'] for prop in return_props]
+    units = [prop_dict[prop]['units'] for prop in return_props]
+    indices = [index for index, value in enumerate(shape_props) if value != "–"]
+    filt_shape_props = [prop for index, prop in enumerate(shape_props) if index in indices]
+    filt_prop_labels = [label for index, label in enumerate(prop_labels) if index in indices]
+    filt_units = [unit for index, unit in enumerate(units) if index in indices]
+    return jsonify({'prop_labels': filt_prop_labels, 'shape_props': filt_shape_props, 'units': filt_units, 'shape_type': shape_type})
 
 @app.route('/shape-labels', methods=['GET'])
 def get_labels():
     shape_header = 'EDI_Std_Nomenclature'
-    shape_labels = get_column_values(config.DATABASE_URL, config.TABLE_NAME, shape_header)
+    shape_labels = db_utils.get_column_values(config.DATABASE_URL, config.TABLE_NAME, shape_header)
     return jsonify(shape_labels)
 
 @app.route('/shape-table-labels', methods=['GET'])
